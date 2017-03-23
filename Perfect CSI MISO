@@ -1,0 +1,100 @@
+clc
+clear all;
+close all;
+
+N = 4;                            %发射端天线个数
+e = 0.1;                          %中断概率
+T_e = 0.5;                        %信道参数取值  
+% T_e = 1;      
+% T_e = 5;      
+lmd = (N-1)*(e^(1/(1-N))-1);      %参数λ取值
+h_B1 = sqrt(1);                   %信道参数hB
+h_B2 = sqrt(10);
+P_dB = -10:2:20;                  %发射功率取值
+P = 10.^(P_dB./10);  
+
+for i=1:length(P)
+ 
+  %% reference
+  % -- 信道参数去不同值的仿真结果
+    Rs1(i) = 2*log2((sqrt(P(i)*lmd*(h_B1^2))-sqrt(P(i)*(h_B1^2)-lmd+1))/(lmd-1));
+    Rs2(i) = 2*log2((sqrt(P(i)*lmd*h_B2^2)-sqrt(P(i)*h_B2^2-lmd+1))/(lmd-1));
+    if  Rs1(i) <= 0
+        Rs1(i) = 0;
+    else
+        Rs1(i) = Rs1(i);
+    end
+    
+    if  Rs2(i) <= 0
+        Rs2(i) = 0;
+    else
+        Rs2(i) = Rs2(i);
+    end
+    
+  %% new method
+  % --参数选择
+    gamma_e(i) = P(i)*T_e;          % average gamma
+    gamma_b1(i) = P(i)*h_B1^2;      % brevity parameter
+    gamma_b2(i) = P(i)*h_B2^2;    
+  
+    fai = 0;                          %功率分配函数
+    f1=@(w0)(w0/gamma_e(i) + (N-1)*log(1 + w0*(1-fai)/(N-1))-log(1/e));  % --numerically solving G(w,0)=0
+    F(i)=fsolve(f1,0);
+    % --- 信道参数取值为 h_B^2 = 1
+    if  gamma_b1(i) <= F(i)
+        fai_opt = 0;w = F(i);
+        
+    elseif gamma_e(i)<(log(1/e))^(-1/2) && gamma_b1(i)>=gamma_e(i)*(1+gamma_e(i))*log(1/e)/(1-gamma_e(i)^2*log(1/e));
+            fai_opt = 1;
+            f1=@(w1)(w1/gamma_e(i) + (N-1)*log(1 + w1*(1-fai_opt)/(N-1))-log(1/e));
+            F(i)=fsolve(f1,0); w = F(i);
+    else                                 % solve equations  x(1) = w; x(2) = fai;
+            x0 = [1,0.5];                %ε=0.1 迭代初始向量
+            f = @(x)[(x(1)/gamma_e(i) + (N-1)*log(1 + x(1)*(1-x(2))/(N-1))-log(1/e)); 
+            (1/log(2)*(gamma_b1(i)/(1+gamma_b1(i)*x(2))-((x(1)/(1/gamma_e(i)*(1+x(1)*(1-x(2)/(N-1)))+1-x(2)))*x(2)+x(1))/(1+x(1)*x(2))))];
+           [x,fval] = fsolve(f,x0);
+           fai_opt = x(2); w = x(1);   
+    end
+    R_max1(i) = log2(1+gamma_b1(i)*fai_opt)-log2(1+w*fai_opt);
+     % --- 信道参数取值为 h_B^2 = 10
+    if  gamma_b2(i) <= F(i)
+        fai_opt = 0;w = F(i);
+    elseif gamma_e(i)<(log(1/e))^(-1/2) && gamma_b2(i)>=gamma_e(i)*(1+gamma_e(i))*log(1/e)/(1-gamma_e(i)^2*log(1/e));
+            fai_opt = 1;
+            f1=@(w1)(w1/gamma_e(i) + (N-1)*log(1 + w1*(1-fai_opt)/(N-1))-log(1/e));
+            F(i)=fsolve(f1,0); w = F(i);
+    else                                 % solve equations  x(1) = w; x(2) = fai;
+            x0 = [1,0.5];                %ε=0.1 迭代初始向量
+            f = @(x)[(x(1)/gamma_e(i) + (N-1)*log(1 + x(1)*(1-x(2))/(N-1))-log(1/e)); 
+            (1/log(2)*(gamma_b2(i)/(1+gamma_b2(i)*x(2))-((x(1)/(1/gamma_e(i)*(1+x(1)*(1-x(2)/(N-1)))+1-x(2)))*x(2)+x(1))/(1+x(1)*x(2))))];
+           [x,fval] = fsolve(f,x0);
+           fai_opt = x(2); w = x(1);
+            
+    end
+
+     R_max2(i) = log2(1+gamma_b2(i)*fai_opt)-log2(1+w*fai_opt);    
+        
+    
+end
+
+plot(P_dB,Rs1,'-or');
+hold on
+plot(P_dB,Rs2,'-ob');
+hold on
+plot(P_dB,R_max1,'-k*');
+hold on 
+plot(P_dB,R_max2,'-ko');
+grid on
+
+legend('Ref h_B^2 = 1','Ref h_B^2 = 10','New method h_B^2 = 1','New method h_B^2 = 10');
+xlabel('Transmit Power P(dB) ΓE = 1');
+ylabel('R_m_a_x(bit/s/Hz) ');
+
+
+
+
+
+
+
+
+
